@@ -10,7 +10,10 @@ import {
     ReactElement,
     compareTwoElement
 } from './ReactElement';
-import {onlyOne, flatten} from './utils'
+import {
+    onlyOne,
+    flatten
+} from './utils'
 
 function createElement(type, config = {}, ...children) {
     // 编译后产生的属性，基本没什么用
@@ -138,7 +141,7 @@ function shouldUpdate(component, nextProps, nextState) {
 }
 class Component {
     static contextType = null;
-    constructor(props={}, context) {
+    constructor(props = {}, context) {
         this.props = props;
         this.context = context;
         this.$updater = new Updater(this);
@@ -182,16 +185,17 @@ function createRef() {
         current: null
     };
 }
+
 function createContext(defaultValue) {
     class Provider extends Component {
         $$typeof = REACT_PROVIDER_TYPE;
         constructor(props) {
             super(props);
             Provider.value = props.value;
-            this.state = null;// 如果通过getDerivedStateFromProps实现的话就需要初始化state,而state为null即可。
+            this.state = null; // 如果通过getDerivedStateFromProps实现的话就需要初始化state,而state为null即可。
         }
-        static getDerivedStateFromProps(props){
-            Provider.value=props.value;
+        static getDerivedStateFromProps(props) {
+            Provider.value = props.value;
             return null;
         }
         render() {
@@ -205,7 +209,11 @@ function createContext(defaultValue) {
             return onlyOne(this.props.children)(Provider.value);
         }
     }
-    return { $$typeof: REACT_CONTEXT_TYPE, Provider, Consumer };
+    return {
+        $$typeof: REACT_CONTEXT_TYPE,
+        Provider,
+        Consumer
+    };
 }
 const React = {
     createElement,
