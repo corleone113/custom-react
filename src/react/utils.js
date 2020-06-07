@@ -41,14 +41,15 @@ export function flatten(array) {
 export function patchProps(dom, oldProps, newProps) {
     for (const key in oldProps) {
         if (key !== 'children') {
-            if (newProps.hasOwnProperty(key)) {
+            if (oldProps.hasOwnProperty(key) && !newProps.hasOwnProperty(key)) { // 删除新节点移除的属性
                 dom.removeAttribute(key);
             }
         }
     }
     for (const key in newProps) {
         if (key !== 'children') {
-            setProp(dom, key, newProps[key]);
+            if (oldProps[key] !== newProps[key]) // 更新有变化或新增的属性
+                setProp(dom, key, newProps[key]);
         }
     }
 }

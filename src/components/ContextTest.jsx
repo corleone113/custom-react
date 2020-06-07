@@ -1,5 +1,5 @@
-import React, { Component } from './react'
-import someContext from './someContext';
+import React, { Component } from '../react'
+import someContext from '../someContext';
 // import PropTypes from 'prop-types';
 class Header extends Component {
     render() {

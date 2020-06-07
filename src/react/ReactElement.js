@@ -30,7 +30,7 @@ export function createDOM(element) {
         $$typeof
     } = element;
     let dom = null;
-    if (!$$typeof) {
+    if (!$$typeof) { // undfeind boolean
         dom = document.createTextNode(element);
     } else if ($$typeof === TEXT) {
         dom = document.createTextNode(element.children);
@@ -60,7 +60,7 @@ function createNativeDOM(element) {
     createDOMChildren(dom, children);
     // 给该DOM节点添加attributes
     setProps(dom, props);
-    if (ref) {
+    if (ref) { // 挂载ref
         ref.current = dom;
     }
     return dom;
@@ -70,7 +70,7 @@ function createDOMChildren(parentNode, children) {
     children && children.forEach((child, index) => {
         // 为child添加_mountIndex属性，表示其在父节点中的位置，在dom-diff中有重要的作用。
         if (child !== null) { // 可能为null
-            child._mountIndex = index;
+            child._mountIndex = index; // 进行diff时会用到
             const childDOM = createDOM(child); // 创建字节的真实DOM节点
             parentNode.appendChild(childDOM);
         }
@@ -135,11 +135,9 @@ function createClassComponentDOM(element) {
 }
 
 export function compareTwoElement(oldRenderElement, newRenderElement) {
-    oldRenderElement = onlyOne(oldRenderElement);
-    newRenderElement = onlyOne(newRenderElement);
     let currentDOM = oldRenderElement.dom;
     let currentElement = oldRenderElement;
-    if (newRenderElement == null) {
+    if (newRenderElement == null) { // 条件渲染
         const {
             componentInstance,
             componentInstance: {
@@ -162,7 +160,7 @@ export function compareTwoElement(oldRenderElement, newRenderElement) {
 }
 
 function updateElement(oldElement, newElement) {
-    let currentDOM = newElement.dom = oldElement.dom;
+    let currentDOM = oldElement.dom;
     if (oldElement.$$typeof === TEXT && newElement.$$typeof === TEXT) {
         if (oldElement.children !== newElement.children) {
             currentDOM.textContent = newElement.children;
@@ -176,7 +174,6 @@ function updateElement(oldElement, newElement) {
         updateFunctionComponent(oldElement, newElement);
     } else if (oldElement.$$typeof === CLASS_COMPONENT) {
         updateClassComponent(oldElement, newElement);
-        newElement.componentInstance = oldElement.componentInstance; // 复用组件实例
     }
 }
 
@@ -196,21 +193,23 @@ function updateFunctionComponent(oldElement, newElement) {
 }
 
 function updateClassComponent(oldElement, newElement) {
-    const componentInstance = oldElement.componentInstance; // 获取就得组件实例
-    // const oldRenderElement = componentInstance.renderElement;// 上次渲染的react元素
-    if(oldElement.type.contextType){
-        componentInstance.context = oldElement.type.contextType.Provider.value;
-    }
-    const updater = componentInstance.$updater;
+    const {
+        componentInstance,
+        componentInstance: {
+            componentWillUpdate,
+            state,
+            $updater,
+        },
+        type: ClassConstructor,
+        type: {
+            contextType,
+            getDerivedStateFromProps
+        }
+    } = oldElement; // 获取就得组件实例
     const nextProps = newElement.props;
-    const {
-        componentWillUpdate,
-        state
-    } = componentInstance;
-    const ClassConstructor = Object.getPrototypeOf(componentInstance).constructor;
-    const {
-        getDerivedStateFromProps
-    } = ClassConstructor;
+    if (contextType) { // 更新context
+        componentInstance.context = contextType.Provider.value;
+    }
     if (typeof getDerivedStateFromProps === 'function') {
         if (typeof componentWillUpdate === 'function') {
             throw new Error('The new API getDerivedStateFromProps should not used width old API componentWillUpdate at the same time.');
@@ -223,7 +222,7 @@ function updateClassComponent(oldElement, newElement) {
             componentInstance.state = nextState;
         }
     }
-    updater.emitUpdate(nextProps);
+    $updater.emitUpdate(nextProps);
 }
 
 function updateChildrenElements(dom, oldChildrenElements, newChildrenElements) {
@@ -282,7 +281,7 @@ function insertChildAt(parentNode, childDOM, toIndex) {
 }
 
 function diff(parentNode, oldChildrenElements, newChildrenElements) {
-    const oldChildrenElementMap = getChildrenElementMap(oldChildrenElements);
+    const oldChildrenElementMap = getOldChildrenElementMap(oldChildrenElements);
     const newChildrenElementMap = getNewChildrenElementMap(oldChildrenElementMap, newChildrenElements);
     let lastIndex = 0;
     for (let i = 0; i < newChildrenElements.length; ++i) {
@@ -292,17 +291,18 @@ function diff(parentNode, oldChildrenElements, newChildrenElements) {
             const oldChildElement = oldChildrenElementMap[newKey];
             if (newChildElement === oldChildElement) {
                 const {
-                    _mountIndex: origIndex
+                    _mountIndex
                 } = oldChildElement;
-                if (origIndex < lastIndex) {
+                if (_mountIndex < lastIndex) {
                     diffQueue.push({
                         parentNode,
                         type: MOVE,
-                        fromIndex: origIndex,
+                        fromIndex: _mountIndex,
                         toIndex: i,
                     })
+                } else {
+                    lastIndex = _mountIndex;
                 }
-                lastIndex = Math.max(lastIndex, origIndex);
             } else {
                 diffQueue.push({
                     parentNode,
@@ -316,11 +316,11 @@ function diff(parentNode, oldChildrenElements, newChildrenElements) {
     }
     for (let oldKey in oldChildrenElementMap) {
         if (!newChildrenElementMap.hasOwnProperty(oldKey)) {
-            const oldChildElement = oldChildrenElementMap[oldKey]
+            const oldChildElement = oldChildrenElementMap[oldKey];// 有可能为null——条件渲染
             diffQueue.push({
                 parentNode,
                 type: REMOVE,
-                fromIndex: oldChildElement ? oldChildElement._mountIndex : oldKey,
+                fromIndex: (oldChildElement && oldChildElement._mountIndex) || oldKey,
             })
         }
     }
@@ -344,13 +344,13 @@ function getNewChildrenElementMap(oldChildrenElementMap, newChildrenElements) {
 }
 
 function canDeepCompare(oldChildElement, newChildElement) {
-    if (oldChildElement && newChildElement) {
+    if (oldChildElement && newChildElement) { // oldChildElement不为空则表示根据key查找到了旧节点，即oldChildElment和newChildElementkey相同
         return oldChildElement.type === newChildElement.type;
     }
     return false;
 }
 
-function getChildrenElementMap(oldChildrenElements) {
+function getOldChildrenElementMap(oldChildrenElements) {
     const oldChildrenElementMap = {};
     for (let i = 0; i < oldChildrenElements.length; ++i) {
         const oldKey = (oldChildrenElements[i] && oldChildrenElements[i].key) || i.toString();

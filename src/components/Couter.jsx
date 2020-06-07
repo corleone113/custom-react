@@ -1,4 +1,4 @@
-import React, { Component } from './react';
+import React, { Component } from '../react';
 function FunctionCounter(props) {
     return (
         <div counter={`counter${props.number}`}>
@@ -48,7 +48,9 @@ export default class extends Component {
     state = { number: 0 };
     add = () => {
         this.setState({ number: this.state.number + 1 }); console.log('>>>>', this.state);
-        this.setState({ number: this.state.number + 1 }); console.log('>>>>', this.state);
+        // this.setState({ number: this.state.number + 1 });
+        this.setState(state => ({number: state.number+1}), ()=>console.log('##############', this.state));
+         console.log('^^^^', this.state);
         setTimeout(() => {
             this.setState({ number: this.state.number + 1 }); console.log('>>>>', this.state);
         });
@@ -66,8 +68,6 @@ export default class extends Component {
                 <FunctionCounter number={this.state.number} add={this.add} sub={this.sub} />
                 <ClassCounter number={this.state.number} add={this.add} sub={this.sub} />
             </div>
-            // <FunctionCounter number={this.state.number} add={this.add} sub={this.sub} />
-            // <ClassCounter number={this.state.number} add={this.add} sub={this.sub} />
         )
     }
 }

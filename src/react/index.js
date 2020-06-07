@@ -16,9 +16,9 @@ import {
 } from './utils'
 
 function createElement(type, config = {}, ...children) {
-    // 编译后产生的属性，基本没什么用
     let key, ref, props = {};
     if (config) {
+        // 编译后产生的属性，基本没什么用
         delete config.__source;
         delete config.__self;
         delete config.__store;
@@ -40,7 +40,7 @@ function createElement(type, config = {}, ...children) {
     props.children = children.map(child => {
         if (typeof child === 'object' || typeof child === 'function') {
             return child;
-        } else {
+        } else {// 目前暂时将基本类型也转化为对象
             return {
                 $$typeof: TEXT,
                 type: 'text',
@@ -70,6 +70,7 @@ class Updater {
     constructor(component) {
         this.component = component;
         this.pendingStates = [];
+        this.callbacks = [];
         this.nextProps = null;
         this.preState = null;
         this.preProps = null;
@@ -78,6 +79,7 @@ class Updater {
         if ((typeof partialState !== 'object' && typeof partialState !== 'function') || partialState === null) {
             throw new Error('Expected first argument passed to setState is a object or function');
         }
+        typeof callback === 'function' && this.callbacks.push(callback);
         this.pendingStates.push(partialState);
         this.emitUpdate();
     }
@@ -127,6 +129,8 @@ class Updater {
 function shouldUpdate(component, nextProps, nextState) {
     nextProps && (component.props = nextProps);
     component.state = nextState;
+    component.$updater.callbacks.forEach(cb=>cb());
+    component.$updater.callbacks.length = 0;
     const {
         state,
         props
@@ -135,7 +139,7 @@ function shouldUpdate(component, nextProps, nextState) {
         component.componentWillReceiveProps(props);
     }
     if (typeof component.shouldComponentUpdate === 'function' && !component.shouldComponentUpdate(props, state)) {
-        return false;
+        return;
     }
     component.forceUpdate();
 }
@@ -146,7 +150,6 @@ class Component {
         this.context = context;
         this.$updater = new Updater(this);
         this.state = {};
-        this.nextProps = null;
     }
     setState(partialState, callback) {
         this.$updater.addState(partialState, callback);
@@ -195,11 +198,12 @@ function createContext(defaultValue) {
             this.state = null; // 如果通过getDerivedStateFromProps实现的话就需要初始化state,而state为null即可。
         }
         static getDerivedStateFromProps(props) {
+            console.log('>>>>> props value:', props.value);
             Provider.value = props.value;
             return null;
         }
         render() {
-            return this.props.children;
+            return onlyOne(this.props.children);
         }
 
     }

@@ -1,4 +1,4 @@
-import React, { Component, createRef } from './react';
+import React, { Component, createRef } from '../react';
 export default class A extends Component {
     constructor(props) {
         super(props);
@@ -68,7 +68,7 @@ class B extends Component {
     }
     shouldComponentUpdate(nextProps,nextState) {
         console.log('B shouldComponentUpdate called!');
-        if (nextState.number > 4)
+        if (nextProps.number > 4)
             return true;
         return false;
     }

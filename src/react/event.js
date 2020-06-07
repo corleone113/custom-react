@@ -46,7 +46,7 @@ function dispatchEvent(event) { // event就是原生DOM事件对象
 }
 
 function persist() {
-    syntheticEvent = {
+    syntheticEvent = {// syntheticEvent指向另外的对象，就无法清除原对象上的事件对象属性了
         persist
     };
 }
