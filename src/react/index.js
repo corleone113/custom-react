@@ -8,17 +8,22 @@ import {
 } from './constants';
 import {
     ReactElement,
-    compareTwoElement
+    compareTwoElement,
+    fillUpdaterMap,
 } from './ReactElement';
 import {
     onlyOne,
     flatten
-} from './utils'
+} from './utils';
+import {
+    Updater,
+    batchingInject
+} from './updater';
 
 function createElement(type, config = {}, ...children) {
     let key, ref, props = {};
     if (config) {
-        // 编译后产生的属性，基本没什么用
+        // 编译后产生的属性
         delete config.__source;
         delete config.__self;
         delete config.__store;
@@ -36,12 +41,13 @@ function createElement(type, config = {}, ...children) {
     } else if (typeof type === 'function') {
         $$typeof = FUNCTION_COMPONENT;
     }
-    children = flatten(children);
+    children = flatten(children); // 默认展开数组
     props.children = children.map(child => {
-        if (typeof child === 'object' || typeof child === 'function') {
+        // children中的函数或基本类型的值不会被babel转码器转化为createElement调用
+        if (typeof child === 'object' || typeof child === 'function') { // children为React元素或函数时直接返回
             return child;
-        } else {// 目前暂时将基本类型也转化为对象
-            return {
+        } else { // 目前暂时将基本类型也转化为对象
+            return { // 当作React元素
                 $$typeof: TEXT,
                 type: 'text',
                 children: child + '',
@@ -50,138 +56,48 @@ function createElement(type, config = {}, ...children) {
     });
     return ReactElement($$typeof, type, key, ref, props);
 }
-export const updateQueue = {
-    updaters: [],
-    isPending: false, // 是否批量更新
-    add(updater) {
-        this.updaters.push(updater);
-    },
-    batchUpdate() {
-        const {
-            updaters
-        } = this;
-        let updater;
-        while ((updater = updaters.pop())) {
-            updater.updateComponent();
-        }
-    }
-}
-class Updater {
-    constructor(component) {
-        this.component = component;
-        this.pendingStates = [];
-        this.callbacks = [];
-        this.nextProps = null;
-        this.preState = null;
-        this.preProps = null;
-    }
-    addState(partialState, callback) {
-        if ((typeof partialState !== 'object' && typeof partialState !== 'function') || partialState === null) {
-            throw new Error('Expected first argument passed to setState is a object or function');
-        }
-        typeof callback === 'function' && this.callbacks.push(callback);
-        this.pendingStates.push(partialState);
-        this.emitUpdate();
-    }
-    emitUpdate(nextProps) { // 可能会传递一个新的属性对象。
-        nextProps && (this.nextProps = nextProps);
-        // 如果传递新的属性对象或当前非批量更新状态的话就直接更新
-        if (nextProps || !updateQueue.isPending) {
-            this.updateComponent();
-        } else {
-            updateQueue.add(this);
-        }
-    }
-    updateComponent() {
-        const {
-            component,
-            pendingStates,
-            nextProps
-        } = this;
-        this.preProps = component.props;
-        this.preState = component.state;
-        if (nextProps || pendingStates.length > 0) {
-            shouldUpdate(component, nextProps, this.getState());
-        }
-    }
-    getState() {
-        const {
-            component,
-            pendingStates,
-        } = this;
-        let {
-            state,
-            props
-        } = component;
-        if (pendingStates.length > 0) {
-            for (const partialState of pendingStates) {
-                if (typeof partialState === 'function') {
-                    state = partialState.call(component, state, props);
-                }
-                state = Object.assign(state, partialState);
-            }
-            this.pendingStates.length = 0;
-        }
-        return state;
-    }
-}
 
-function shouldUpdate(component, nextProps, nextState) {
-    nextProps && (component.props = nextProps);
-    component.state = nextState;
-    component.$updater.callbacks.forEach(cb=>cb());
-    component.$updater.callbacks.length = 0;
-    const {
-        state,
-        props
-    } = component;
-    if (typeof component.componentWillReceiveProps === 'function') {
-        component.componentWillReceiveProps(props);
-    }
-    if (typeof component.shouldComponentUpdate === 'function' && !component.shouldComponentUpdate(props, state)) {
-        return;
-    }
-    component.forceUpdate();
-}
 class Component {
     static contextType = null;
     constructor(props = {}, context) {
         this.props = props;
         this.context = context;
-        this.$updater = new Updater(this);
+        this.$updater = new Updater(this); // 创建对应的Updater实例
         this.state = {};
+        this.ban = true; // 构造函数执行期间不能使用setState
     }
     setState(partialState, callback) {
-        this.$updater.addState(partialState, callback);
+        !this.ban && this.$updater.addState(partialState, callback);
     }
     forceUpdate() { // 进行组件实际的更新
         const {
             props,
             state,
-            renderElement: oldRenderElement,
+            renderElement: oldRenderElement, // 旧的render返回值——渲染结果
             $updater: {
                 preProps,
                 preState,
             }
         } = this;
         if (typeof this.componentWillUpdate === 'function') {
-            this.componentWillUpdate(props, state);
+            batchingInject(this.$updater, this.componentWillUpdate.bind(this, props, state))
         }
-        const newRenderElement = this.render();
-        const currentElement = compareTwoElement(oldRenderElement, newRenderElement);
-        this.renderElement = currentElement;
+        const newRenderElement = batchingInject(this.$updater, this.render.bind(this)); // 获取新的渲染结果
+        const currentElement = compareTwoElement(oldRenderElement, newRenderElement); // 比对新旧渲染结果
+        fillUpdaterMap(this.$updater, currentElement.props.children);
+        this.renderElement = currentElement; // 更新当前实例的renderElement属性
         let snapshot;
         if (typeof this.getSnapshotBeforeUpdate === 'function') {
             if (typeof this.componentWillUpdate === 'function')
                 throw new Error('The new API getSnapshotBeforeUpdate should not used width old API componentWillUpdate at the same time.')
-            snapshot = this.getSnapshotBeforeUpdate(preProps, preState);
+            snapshot = batchingInject(this.$updater, this.getSnapshotBeforeUpdate.bind(this, preProps, preState));
         }
         if (typeof this.componentDidUpdate === 'function') {
-            this.componentDidUpdate(preProps, preState, snapshot);
+            batchingInject(this.$updater, this.componentDidUpdate.bind(this, preProps, preState, snapshot));
         }
     }
 }
-Component.prototype.isComponent = {};
+Component.prototype.isComponent = {}; // 标识类组件
 
 function createRef() {
     return {
@@ -197,13 +113,12 @@ function createContext(defaultValue) {
             Provider.value = props.value;
             this.state = null; // 如果通过getDerivedStateFromProps实现的话就需要初始化state,而state为null即可。
         }
-        static getDerivedStateFromProps(props) {
-            console.log('>>>>> props value:', props.value);
+        static getDerivedStateFromProps(props) { // 更新Provider.value
             Provider.value = props.value;
             return null;
         }
         render() {
-            return onlyOne(this.props.children);
+            return onlyOne(this.props.children); // 只渲染一个子组件。
         }
 
     }
