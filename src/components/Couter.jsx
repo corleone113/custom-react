@@ -11,7 +11,9 @@ function FunctionCounter(props) {
 class ClassCounter extends Component {
     state = { changeList: true }
     change = () => {
-        this.setState((state) => {
+        this.props.add();
+        this.setState((state, props) => {
+            console.log('the state and props:', state, props);
             return { changeList: !state.changeList }
         })
     }
@@ -45,12 +47,12 @@ class ClassCounter extends Component {
     }
 }
 export default class extends Component {
-    state = { number: 0 };
+    state = { number: 0, some: 'corleone' };
     add = () => {
-        this.setState({ number: this.state.number + 1 }); console.log('>>>>', this.state);
-        // this.setState({ number: this.state.number + 1 });
-        this.setState(state => ({number: state.number+1}), ()=>console.log('##############', this.state));
-         console.log('^^^^', this.state);
+        this.setState({ number: this.state.number + 1 });
+        console.log('>>>>', this.state);
+        this.setState(state => ({ number: state.number + 1, some: state.some + state.number }), () => console.log('##############', this.state));
+        console.log('^^^^', this.state);
         setTimeout(() => {
             this.setState({ number: this.state.number + 1 }); console.log('>>>>', this.state);
         });
@@ -62,7 +64,8 @@ export default class extends Component {
     render() {
         return (
             <div id={`counter${this.state.number}`}>
-                number: {this.state.number}
+                <p>number: {this.state.number}</p>
+                <p>some: {this.state.some}</p>
                 <button onClick={this.add}>+</button>
                 <button onClick={this.sub}>-</button>
                 <FunctionCounter number={this.state.number} add={this.add} sub={this.sub} />
