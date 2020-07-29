@@ -1,6 +1,7 @@
 import {
     addEvent
 } from './event';
+import { batchingInject } from './updater';
 export function onlyOne(target) {
     return Array.isArray(target) ? target[0] : target;
 }
@@ -49,6 +50,17 @@ export function patchProps(dom, oldProps, newProps) {
         if (key !== 'children') {
             if (oldProps[key] !== newProps[key]) // 新props上某个属性值和旧props对应属性值不同则说明DOM节点需要更新/新增该属性
                 setProp(dom, key, newProps[key]);
+        }
+    }
+}
+
+export function injectListener(updaters, props) { // 对监听器进行劫持
+    for (const key in props) {
+        if (/^on/.test(key)) { // 'on'开头表示为事件监听器prop
+            const fn = props[key];
+            props[key] = (...args)=>{
+                batchingInject(updaters, fn.bind(this, ...args)); // 监听器执行结束才进行批量更新
+            }
         }
     }
 }

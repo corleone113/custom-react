@@ -7,9 +7,12 @@ const updateQueue = {
         const {
             updaters
         } = this;
-        let updater;
-        while ((updater = updaters.pop())) { // 批量更新组件
+        for(const updater of updaters){ // 批量更新组件
             updater.update();
+        }
+        let updater;
+        while ((updater = updaters.pop())) { // 最后执行回调
+            updater.executeCallbacks();
         }
     }
 }
@@ -53,47 +56,48 @@ export class Updater {
         }
         this.nextProps = undefined;
     }
+    executeCallbacks(){
+        this.callbacks.forEach(cb => cb()); // 遍历执行传入setState的回调
+        this.callbacks.length = 0; // 重置回调数组
+    }
     updateComponent(component, nextProps = component.props) {
         component.props = nextProps; // 先更新props
         const {
             pendingStates,
         } = this;
-        let {
+        let updatedState; // 创建变量保存更新结果
+        for (const partialState of pendingStates) { // 开始批量更新state
+            const {state, props} = component;
+            if (typeof partialState === 'function') { // 如果是函数取其返回值作为更新结果
+                updatedState = partialState.call(component, state, props); // 执行时传入旧的state和新的props
+            } else {
+                updatedState = partialState; // 否则直接作为更新结果
+            }
+            component.state = {
+                ...state,
+                ...updatedState
+            }; // 进行合并
+        }
+        this.pendingStates.length = 0; // 更新数组重置为0
+        const {
             state,
             props,
             componentWillReceiveProps,
             shouldComponentUpdate,
         } = component;
-        if (pendingStates.length > 0) { // 开始批量更新state
-            let updatedState; // 创建变量保存更新结果
-            for (const partialState of pendingStates) {
-                if (typeof partialState === 'function') { // 如果是函数取其返回值作为更新结果
-                    updatedState = partialState.call(component, state, props); // 执行时传入旧的state和新的props
-                } else {
-                    updatedState = partialState; // 否则直接作为更新结果
-                }
-                component.state = {
-                    ...state,
-                    ...updatedState
-                }; // 进行合并
-            }
-            this.pendingStates.length = 0; // 更新数组重置为0
-        }
-        this.callbacks.forEach(cb => cb()); // 遍历执行传入setState的回调
-        this.callbacks.length = 0; // 重置回调数组
         if (typeof componentWillReceiveProps === 'function') {
-            batchingInject(this, componentWillReceiveProps.bind(component, props))
+            component.componentWillReceiveProps(props);
         }
-        if (typeof shouldComponentUpdate === 'function' && !batchingInject(this, shouldComponentUpdate.bind(component, props, state))) {
+        if (typeof shouldComponentUpdate === 'function' && !component.shouldComponentUpdate(props, state)) {
             return;
         }
         component.forceUpdate(); // 更新组件
     }
 }
-export function batchingInject(updater, fn) { // 劫持需要批量更新的函数，函数执行完进行批量更新(state)，并返回函数执行结果
-    updater.batching = true; // 打开批量更新状态
+export function batchingInject(updaters, fn) { // 劫持需要批量更新的函数，函数执行完进行批量更新(state)，并返回函数执行结果
+    updaters.forEach(updater=>updater.batching = true); // 打开批量更新状态
     const ret = fn(); // 执行劫持的函数并保存结果
-    updater.batching = false; // 关闭批量更新状态
+    updaters.forEach(updater=>updater.batching = false); // 关闭批量更新状态
     updateQueue.batchUpdate(); // 进行批量更新
     return ret; // 返回结果
 }

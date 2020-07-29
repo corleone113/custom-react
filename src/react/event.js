@@ -1,9 +1,3 @@
-import {
-    batchingInject,
-} from './updater';
-import {
-    listenerToUpdater
-} from './ReactElement';
 /**
  * React中事件绑定是按照推荐方式进行的——绑定到document上
  * @param {*} dom 要绑定事件的DOM节点
@@ -34,8 +28,7 @@ function dispatchEvent(event) { // event就是原生DOM事件对象
         } = target;
         const listener = eventStore && eventStore[eventType];
         if (listener) {
-            const updater = listenerToUpdater.get(listener);
-            batchingInject(updater, listener.bind(null, syntheticEvent)); // 劫持事件监听器，监听器执行完后批量更新state
+            listener(syntheticEvent);
         }
         target = target.parentNode;
     }

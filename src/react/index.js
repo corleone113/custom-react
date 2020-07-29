@@ -9,15 +9,13 @@ import {
 import {
     ReactElement,
     compareTwoElement,
-    fillUpdaterMap,
 } from './ReactElement';
 import {
     onlyOne,
-    flatten
+    flatten,
 } from './utils';
 import {
     Updater,
-    batchingInject
 } from './updater';
 
 function createElement(type, config = {}, ...children) {
@@ -80,20 +78,19 @@ class Component {
             }
         } = this;
         if (typeof this.componentWillUpdate === 'function') {
-            batchingInject(this.$updater, this.componentWillUpdate.bind(this, props, state))
+            this.componentWillUpdate(props, state);
         }
-        const newRenderElement = batchingInject(this.$updater, this.render.bind(this)); // 获取新的渲染结果
+        const newRenderElement = this.render(); // 获取新的渲染结果
         const currentElement = compareTwoElement(oldRenderElement, newRenderElement); // 比对新旧渲染结果
-        fillUpdaterMap(this.$updater, currentElement.props.children);
         this.renderElement = currentElement; // 更新当前实例的renderElement属性
         let snapshot;
         if (typeof this.getSnapshotBeforeUpdate === 'function') {
             if (typeof this.componentWillUpdate === 'function')
                 throw new Error('The new API getSnapshotBeforeUpdate should not used width old API componentWillUpdate at the same time.')
-            snapshot = batchingInject(this.$updater, this.getSnapshotBeforeUpdate.bind(this, preProps, preState));
+            snapshot = this.getSnapshotBeforeUpdate(preProps, preState);
         }
         if (typeof this.componentDidUpdate === 'function') {
-            batchingInject(this.$updater, this.componentDidUpdate.bind(this, preProps, preState, snapshot));
+            this.componentDidUpdate(preProps, preState, snapshot);
         }
     }
 }

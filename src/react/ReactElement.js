@@ -11,13 +11,10 @@ import {
     onlyOne,
     setProps,
     patchProps,
+    injectListener
 } from './utils';
-import {
-    batchingInject
-} from './updater';
 let updateDepth = 0;
 const diffQueue = [];
-export const listenerToUpdater = new WeakMap();
 export function ReactElement($$typeof, type, key, ref, props) {
     const element = {
         $$typeof,
@@ -59,10 +56,12 @@ function createNativeDOM(element) {
             children,
         },
         ref,
+        updaters,
     } = element;
     const dom = document.createElement(type);
+    updaters && injectListener(updaters, props);
     // 创建此DOM节点的子节点
-    createDOMChildren(dom, children);
+    createDOMChildren(dom, children, updaters);
     // 给该DOM节点添加attributes
     setProps(dom, props);
     if (ref) { // 挂载ref
@@ -71,10 +70,11 @@ function createNativeDOM(element) {
     return dom;
 }
 
-function createDOMChildren(parentNode, children) {
+function createDOMChildren(parentNode, children, updaters) {
     children && children.forEach((child, index) => {
         // 为child添加_mountIndex属性，表示其在父节点中的位置，在dom-diff中有重要的作用。
         if (child !== null) { // 可能为null
+            updaters && (child.updaters = updaters.slice());
             child._mountIndex = index; // 进行diff时会用到
             const childDOM = createDOM(child); // 创建字节的真实DOM节点
             parentNode.appendChild(childDOM);
@@ -85,10 +85,12 @@ function createDOMChildren(parentNode, children) {
 function createFunctionCompoonentDOM(element) {
     const {
         type: FunctionComponent,
-        props
+        props,
+        updaters,
     } = element;
     const renderElement = FunctionComponent(props); // 执行函数组件得到渲染结果
     element.renderElement = renderElement; // 将渲染结果保存在renderElement属性上
+    updaters && (renderElement.updaters = updaters.slice());
     const newDOM = createDOM(renderElement); // 基于渲染结果创建DOM节点
     return newDOM;
 }
@@ -98,6 +100,7 @@ function createClassComponentDOM(element) {
         type: ClassConstructor,
         props,
         ref,
+        updaters,
     } = element;
     const {
         getDerivedStateFromProps,
@@ -115,11 +118,13 @@ function createClassComponentDOM(element) {
         state,
         $updater,
     } = componentInstance;
+    if(updaters) updaters.push(componentInstance.$updater);
+    else element.updaters = [$updater];
     if (typeof getDerivedStateFromProps === 'function') {
         if (typeof componentWillMount === 'function') {
             throw new Error('The new API getDerivedStateFromProps should not used width old API componentWillMount at the same time.')
         }
-        const nextState = batchingInject($updater, getDerivedStateFromProps.bind(ClassConstructor, props, state));
+        const nextState = ClassConstructor.getDerivedStateFromProps(props,state);
         if (typeof nextState !== 'object') {
             throw new Error('Expected the return value of getDerivedStateFromProps is null or object');
         }
@@ -128,15 +133,15 @@ function createClassComponentDOM(element) {
         }
     }
     if (typeof componentWillMount === 'function') {
-        batchingInject($updater, componentWillMount.bind(componentInstance))
+        componentInstance.componentWillMount();
     }
     element.componentInstance = componentInstance; // 在类组件生成的虚拟DOM对象上添加指向对应的组件实例的属性
     const renderElement = componentInstance.render();
+    renderElement.updaters = element.updaters.slice();
     componentInstance.renderElement = renderElement; // 在类组件实例上添加指向渲染出的虚拟DOM对象，用于下一次dom-diff比对使用。
-    fillUpdaterMap(componentInstance.$updater, renderElement.props.children); // 填充事件监听器到$updater的映射表——在合成事件中会用到
     const newDOM = createDOM(renderElement); // 基于渲染结果创建DOM节点
     if (typeof componentDidMount === 'function') {
-        batchingInject($updater, componentDidMount.bind(componentInstance));
+        componentInstance.componentDidMount()
     }
     return newDOM;
 }
@@ -149,11 +154,11 @@ export function compareTwoElement(oldRenderElement, newRenderElement) {
             componentInstance,
             componentInstance: {
                 componentWillUnmount,
-                $updater,
-            }
+            },
         } = oldRenderElement
         if (typeof componentWillUnmount === 'function') {
-            batchingInject($updater, componentWillUnmount.bind(componentInstance))
+            componentInstance.ban = true;
+            componentWillUnmount.call(componentInstance);
         }
         currentDOM.parentNode.removeChild(currentDOM); // 移除对应的DOM节点
         currentDOM = null; // 释放占用的内存空间
@@ -174,6 +179,7 @@ function updateElement(oldElement, newElement) { // 这里的比较的两个Reac
             currentDOM.textContent = newElement.children;
         }
     } else if (oldElement.$$typeof === REACT_ELEMENT) { // 处理HTML元素
+        oldElement.updaters && injectListener(oldElement.updaters, newElement.props);
         updateDOMProperties(currentDOM, oldElement.props, newElement.props); // 先更新attribute
         // 递归更新子元素
         updateChildrenElements(currentDOM, oldElement.props.children, newElement.props.children); // 比对子节点
@@ -222,7 +228,7 @@ function updateClassComponent(oldElement, newElement) {
         if (typeof componentWillUpdate === 'function') {
             throw new Error('The new API getDerivedStateFromProps should not used width old API componentWillUpdate at the same time.');
         }
-        const nextState = batchingInject($updater, getDerivedStateFromProps.bind(ClassConstructor, nextProps, state));
+        const nextState = ClassConstructor.getDerivedStateFromProps(nextProps, state);
         if (typeof nextState !== 'object') {
             throw new Error('Expected the return value of getDerivedStateFromProps is null or object');
         }
@@ -362,21 +368,4 @@ function getOldChildrenElementMap(oldChildrenElements) { // 返回key到旧节�
         oldChildrenElementMap[oldKey] = oldChildrenElements[i];
     }
     return oldChildrenElementMap;
-}
-export function fillUpdaterMap(updater, children) { // 创建事件监听器到updater的映射表(这里使用WeakMap，不用担心内存泄漏)，方便在合成事件中进行批量更新(state)
-    if (!Array.isArray(children)) return; // children不为数组直接退出
-    for (const child of children) {
-        if (!child) continue; // child为null则跳过
-        const {
-            props
-        } = child;
-        if (!props) continue; // 不存在props也跳过
-        for (const key in props) {
-            if (/^on/.test(key)) { // 'on'开头表示为事件监听器prop
-                listenerToUpdater.set(props[key], updater);
-            }
-        }
-        fillUpdaterMap(updater, props.children); // 递归进行这一步。
-    }
-
 }
