@@ -164,7 +164,7 @@ export function compareTwoElement(oldRenderElement, newRenderElement) {
         }
         currentDOM.parentNode.removeChild(currentDOM); // 移除对应的DOM节点
         currentDOM = null; // 释放占用的内存空间
-    } else if (oldRenderElement !== newRenderElement || oldRenderElement.type !== newRenderElement.type) { // 类型不同则直接进行替换
+    } else if (renderText(newRenderElement) || oldRenderElement.type !== newRenderElement.type) { // 变为数字/字符串或类型不同则直接进行替换
         const newDOM = createDOM(newRenderElement); // 创建新的DOM节点
         currentDOM.parentNode.replaceChild(newDOM, currentDOM);
         currentElement = newRenderElement; // 此时新的React元素作为返回结果
