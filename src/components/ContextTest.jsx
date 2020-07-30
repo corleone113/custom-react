@@ -54,7 +54,7 @@ export default class Page extends Component {
         this.setState({ color });
     }
     render() {
-        const context = { color: this.state.color, setColor: this.setColor };
+        const context = { color: this.state.color, setColor: this.setColor, age: 23 };
         return (
             <someContext.Provider value={context}>
                 <div style={{ border: '5px solid red', padding: '5px' }}>
