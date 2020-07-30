@@ -78,7 +78,7 @@ export class Updater {
                 ...updatedState
             }; // 进行合并
         }
-        this.pendingStates.length = 0; // 更新数组重置为0
+        this.pendingStates.length = 0; // state更新器数组重置为0
         const {
             state,
             props,
@@ -94,10 +94,9 @@ export class Updater {
         component.forceUpdate(); // 更新组件
     }
 }
-export function batchingInject(updaters, fn) { // 劫持需要批量更新的函数，函数执行完进行批量更新(state)，并返回函数执行结果
+export function batchingInject(updaters, fn) { // 劫持监听器函数，函数执行完进行批量更新(state)
     updaters.forEach(updater=>updater.batching = true); // 打开批量更新状态
-    const ret = fn(); // 执行劫持的函数并保存结果
+    fn(); // 执行监听器函数
     updaters.forEach(updater=>updater.batching = false); // 关闭批量更新状态
     updateQueue.batchUpdate(); // 进行批量更新
-    return ret; // 返回结果
 }
