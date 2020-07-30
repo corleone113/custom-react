@@ -54,20 +54,20 @@ function createElement(type, config = {}, ...children) {
     });
     return ReactElement($$typeof, type, key, ref, props);
 }
-
 class Component {
     static contextType = null;
     constructor(props = {}, context) {
         this.props = props;
         this.context = context;
         this.$updater = new Updater(this); // 创建对应的Updater实例
-        this.state = {};
         this.ban = true; // 构造函数执行期间不能使用setState
+        this.state = {};
+        this.lifecycleCalled = false; // 避免一些声明周期方法被重复调用
     }
     setState(partialState, callback) {
         !this.ban && this.$updater.addState(partialState, callback);
     }
-    forceUpdate() { // 进行组件实际的更新
+    forceUpdate() { // forceUpdate方法
         const {
             props,
             state,
@@ -75,9 +75,25 @@ class Component {
             $updater: {
                 preProps,
                 preState,
+            },
+            constructor,
+            constructor: {
+                getDerivedStateFromProps,
             }
         } = this;
-        if (typeof this.componentWillUpdate === 'function') {
+        if (typeof getDerivedStateFromProps === 'function' && !this.lifecycleCalled) {
+            if (typeof componentWillUpdate === 'function' || typeof componentWillReceiveProps === 'function') {
+                throw new Error('The new API getDerivedStateFromProps should not used width old API componentWillUpdate or componentWillReceiveProps at the same time.');
+            }
+            const nextState = constructor.getDerivedStateFromProps(props, state);
+            if (typeof nextState !== 'object') {
+                throw new Error('Expected the return value of getDerivedStateFromProps is null or object');
+            }
+            if (nextState !== null) {
+                this.state = nextState;
+            }
+        }
+        if (typeof this.componentWillUpdate === 'function' && !this.lifecycleCalled) {
             this.componentWillUpdate(props, state);
         }
         const newRenderElement = this.render(); // 获取新的渲染结果
@@ -92,6 +108,7 @@ class Component {
         if (typeof this.componentDidUpdate === 'function') {
             this.componentDidUpdate(preProps, preState, snapshot);
         }
+        this.lifecycleCalled = false;
     }
 }
 Component.prototype.isComponent = {}; // 标识类组件

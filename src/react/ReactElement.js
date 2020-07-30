@@ -210,31 +210,15 @@ function updateClassComponent(oldElement, newElement) {
     const {
         componentInstance,
         componentInstance: {
-            componentWillUpdate,
-            state,
             $updater,
         },
-        type: ClassConstructor,
         type: {
             contextType,
-            getDerivedStateFromProps
         }
     } = oldElement; // 获取旧组件实例、构造函数等。
     const nextProps = newElement.props;
     if (contextType) { // 更新context
         componentInstance.context = contextType.Provider.value;
-    }
-    if (typeof getDerivedStateFromProps === 'function') {
-        if (typeof componentWillUpdate === 'function') {
-            throw new Error('The new API getDerivedStateFromProps should not used width old API componentWillUpdate at the same time.');
-        }
-        const nextState = ClassConstructor.getDerivedStateFromProps(nextProps, state);
-        if (typeof nextState !== 'object') {
-            throw new Error('Expected the return value of getDerivedStateFromProps is null or object');
-        }
-        if (nextState !== null) {
-            componentInstance.state = nextState;
-        }
     }
     $updater.emitUpdate(nextProps); // 进行后续更新流程
 }

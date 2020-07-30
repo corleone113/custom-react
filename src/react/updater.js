@@ -7,7 +7,7 @@ const updateQueue = {
         const {
             updaters
         } = this;
-        for(const updater of updaters){ // 批量更新组件
+        for (const updater of updaters) { // 批量更新组件
             updater.update();
         }
         let updater;
@@ -56,7 +56,7 @@ export class Updater {
         }
         this.nextProps = undefined;
     }
-    executeCallbacks(){
+    executeCallbacks() {
         this.callbacks.forEach(cb => cb()); // 遍历执行传入setState的回调
         this.callbacks.length = 0; // 重置回调数组
     }
@@ -67,7 +67,10 @@ export class Updater {
         } = this;
         let updatedState; // 创建变量保存更新结果
         for (const partialState of pendingStates) { // 开始批量更新state
-            const {state, props} = component;
+            const {
+                state,
+                props
+            } = component;
             if (typeof partialState === 'function') { // 如果是函数取其返回值作为更新结果
                 updatedState = partialState.call(component, state, props); // 执行时传入旧的state和新的props
             } else {
@@ -83,20 +86,43 @@ export class Updater {
             state,
             props,
             componentWillReceiveProps,
+            componentWillUpdate,
             shouldComponentUpdate,
+            constructor,
+            constructor: {
+                getDerivedStateFromProps
+            }
         } = component;
+
+        if (typeof getDerivedStateFromProps === 'function') { // 调用getDerivedStateFromProps
+            if (typeof componentWillUpdate === 'function' || typeof componentWillReceiveProps === 'function') {
+                throw new Error('The new API getDerivedStateFromProps should not used width old API componentWillUpdate or componentWillReceiveProps at the same time.');
+            }
+            const nextState = constructor.getDerivedStateFromProps(props, state);
+            if (typeof nextState !== 'object') {
+                throw new Error('Expected the return value of getDerivedStateFromProps is null or object');
+            }
+            if (nextState !== null) {
+                component.state = nextState;
+            }
+            component.lifecycleCalled = true; // 这里调用过则forceUpdate中不再调用
+        }
         if (typeof componentWillReceiveProps === 'function') {
             component.componentWillReceiveProps(props);
         }
         if (typeof shouldComponentUpdate === 'function' && !component.shouldComponentUpdate(props, state)) {
             return;
         }
+        if (typeof componentWillUpdate === 'function') {
+            component.componentWillUpdate();
+            component.lifecycleCalled = true;
+        }
         component.forceUpdate(); // 更新组件
     }
 }
 export function batchingInject(updaters, fn) { // 劫持监听器函数，函数执行完进行批量更新(state)
-    updaters.forEach(updater=>updater.batching = true); // 打开批量更新状态
+    updaters.forEach(updater => updater.batching = true); // 打开批量更新状态
     fn(); // 执行监听器函数
-    updaters.forEach(updater=>updater.batching = false); // 关闭批量更新状态
+    updaters.forEach(updater => updater.batching = false); // 关闭批量更新状态
     updateQueue.batchUpdate(); // 进行批量更新
 }
