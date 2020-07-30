@@ -11,10 +11,12 @@ import {
     onlyOne,
     setProps,
     patchProps,
-    injectListener
+    injectListener,
+    renderText,
 } from './utils';
 let updateDepth = 0;
 const diffQueue = [];
+
 export function ReactElement($$typeof, type, key, ref, props) {
     const element = {
         $$typeof,
@@ -27,14 +29,14 @@ export function ReactElement($$typeof, type, key, ref, props) {
 }
 export function createDOM(element) { // 基于传入的React元素创建DOM节点
     element = onlyOne(element); // 只渲染第一个子组件
-    if (!element) { // 处理null/undefined/boolean类型的值
+    if (element == null) { // 处理null/undefined/boolean类型的值
         return document.createTextNode('');
     }
     const {
         $$typeof
     } = element;
     let dom = null;
-    if ($$typeof === TEXT) { // 处理文本React元素
+    if (renderText(element) || $$typeof === TEXT) { // 处理文本React元素
         dom = document.createTextNode(element.children);
     } else if ($$typeof === REACT_ELEMENT) { // 处理HTML元素React元素
         dom = createNativeDOM(element);
@@ -73,7 +75,7 @@ function createNativeDOM(element) {
 function createDOMChildren(parentNode, children, updaters) {
     children && children.forEach((child, index) => {
         // 为child添加_mountIndex属性，表示其在父节点中的位置，在dom-diff中有重要的作用。
-        if (child !== null) { // 可能为null
+        if (child != null) { // 可能为null
             updaters && (child.updaters = updaters.slice());
             child._mountIndex = index; // 进行diff时会用到
             const childDOM = createDOM(child); // 创建字节的真实DOM节点
@@ -118,13 +120,13 @@ function createClassComponentDOM(element) {
         state,
         $updater,
     } = componentInstance;
-    if(updaters) updaters.push(componentInstance.$updater);
+    if (updaters) updaters.push(componentInstance.$updater);
     else element.updaters = [$updater];
     if (typeof getDerivedStateFromProps === 'function') {
         if (typeof componentWillMount === 'function') {
             throw new Error('The new API getDerivedStateFromProps should not used width old API componentWillMount at the same time.')
         }
-        const nextState = ClassConstructor.getDerivedStateFromProps(props,state);
+        const nextState = ClassConstructor.getDerivedStateFromProps(props, state);
         if (typeof nextState !== 'object') {
             throw new Error('Expected the return value of getDerivedStateFromProps is null or object');
         }
@@ -162,7 +164,7 @@ export function compareTwoElement(oldRenderElement, newRenderElement) {
         }
         currentDOM.parentNode.removeChild(currentDOM); // 移除对应的DOM节点
         currentDOM = null; // 释放占用的内存空间
-    } else if (oldRenderElement.type !== newRenderElement.type) { // 类型不同则直接进行替换
+    } else if (oldRenderElement !== newRenderElement || oldRenderElement.type !== newRenderElement.type) { // 类型不同则直接进行替换
         const newDOM = createDOM(newRenderElement); // 创建新的DOM节点
         currentDOM.parentNode.replaceChild(newDOM, currentDOM);
         currentElement = newRenderElement; // 此时新的React元素作为返回结果

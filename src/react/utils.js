@@ -64,3 +64,7 @@ export function injectListener(updaters, props) { // 对监听器进行劫持
         }
     }
 }
+
+export function renderText(target) {
+    return typeof target === 'number' || typeof target === 'string';
+}

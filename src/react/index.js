@@ -13,6 +13,7 @@ import {
 import {
     onlyOne,
     flatten,
+    renderText,
 } from './utils';
 import {
     Updater,
@@ -44,13 +45,14 @@ function createElement(type, config = {}, ...children) {
         // children中的函数或基本类型的值不会被babel转码器转化为createElement调用
         if (typeof child === 'object' || typeof child === 'function') { // children为React元素或函数时直接返回
             return child;
-        } else { // 目前暂时将基本类型也转化为对象
+        } else if(renderText(child)) { // 目前暂时将基本类型也转化为对象
             return { // 当作React元素
                 $$typeof: TEXT,
                 type: 'text',
                 children: child + '',
             };
         }
+        return null;
     });
     return ReactElement($$typeof, type, key, ref, props);
 }
@@ -82,7 +84,7 @@ class Component {
             }
         } = this;
         if (typeof getDerivedStateFromProps === 'function' && !this.lifecycleCalled) {
-            if (typeof componentWillUpdate === 'function' || typeof componentWillReceiveProps === 'function') {
+            if (typeof this.componentWillUpdate === 'function' || typeof this.componentWillReceiveProps === 'function') {
                 throw new Error('The new API getDerivedStateFromProps should not used width old API componentWillUpdate or componentWillReceiveProps at the same time.');
             }
             const nextState = constructor.getDerivedStateFromProps(props, state);
