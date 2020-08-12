@@ -22,7 +22,6 @@ export class Updater {
         this.component = component; // 对应的组件
         this.pendingStates = []; // 存放state updater
         this.callbacks = []; // 存放state更新后执行的回调
-        this.nextProps = undefined; // 存放新的props
         this.preState = null; // 存放旧的state
         this.preProps = null; // 存放旧的state
     }
@@ -35,19 +34,17 @@ export class Updater {
         this.emitUpdate();
     }
     emitUpdate(nextProps) { // 可能会传递一个新的属性对象。
-        nextProps && (this.nextProps = nextProps);
         // 如果传递新的属性对象(props更新了)或当前非批量更新状态的话就直接更新
         if (nextProps || !this.batching) {
-            this.update();
+            this.update(nextProps);
         } else {
             updateQueue.add(this); // 没有传递新的属性对象(没有调用forceUpdate)且处于批量更新状态则将当前updater添加到updateQueue中，稍后更新。
         }
     }
-    update() {
+    update(nextProps) {
         const {
             component,
             pendingStates,
-            nextProps
         } = this;
         this.preProps = component.props;
         this.preState = component.state;

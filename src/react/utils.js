@@ -68,3 +68,29 @@ export function injectListener(updaters, props) { // 对监听器进行劫持
 export function renderText(target) {
     return typeof target === 'number' || typeof target === 'string';
 }
+
+const methodNames = [
+    'componentWillMount',
+    'componentWillReceiveProps',
+    'render',
+    'componentDidMount',
+    'shouldComponentUpdate',
+    'getSnapshotBeforeUpdate',
+    'componentDidUpdate',
+]
+
+export function injectLifecycle(instance){ // 劫持生命周期方法，在声明周期中也会批量延迟更新
+    const {$updater} = instance;
+    for(const fn of methodNames){
+        if(typeof instance[fn] === 'function'){
+            const method = instance[fn];
+            instance[fn] = function(...args){
+                $updater.batching = true;
+                const ret =method.apply(instance, args);
+                $updater.batching = false;
+                $updater.update();
+                return ret;
+            }
+        }
+    }
+}

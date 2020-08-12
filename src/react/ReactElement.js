@@ -13,6 +13,7 @@ import {
     patchProps,
     injectListener,
     renderText,
+    injectLifecycle,
 } from './utils';
 let updateDepth = 0;
 const diffQueue = [];
@@ -110,6 +111,7 @@ function createClassComponentDOM(element) {
     } = ClassConstructor;
     const initContext = contextType ? contextType.Provider.value : contextType; // 获取context
     const componentInstance = new ClassConstructor(props, initContext); // 创建组件实例
+    injectLifecycle(componentInstance);
     componentInstance.ban = false; // 解除限制，现在开始可以使用setState了。
     if (ref) { // 挂载ref——通过ref.current可以获取该类组件实例了。
         ref.current = componentInstance;
