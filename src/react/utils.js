@@ -41,7 +41,7 @@ export function flatten(array) { // 展开嵌套数组
 export function patchProps(dom, oldProps, newProps) {
     for (const key in oldProps) {
         if (key !== 'children') {
-            if (oldProps.hasOwnProperty(key) && !newProps.hasOwnProperty(key)) { // 某个属性旧props有而新props没有则说明DOM节点需要删除该属性
+            if (!newProps.hasOwnProperty(key)) { // 某个属性旧props有而新props没有则说明DOM节点需要删除该属性
                 dom.removeAttribute(key);
             }
         }
@@ -65,7 +65,7 @@ export function injectListener(updaters, props) { // 对监听器进行劫持
     }
 }
 
-export function renderText(target) {
+export function isText(target) {
     return typeof target === 'number' || typeof target === 'string';
 }
 
@@ -79,7 +79,7 @@ const methodNames = [
     'componentDidUpdate',
 ]
 
-export function injectLifecycle(instance){ // 劫持生命周期方法，在声明周期中也会批量延迟更新
+export function injectLifecycle(instance){ // 劫持生命周期方法，在声明周期方法中也会批量延迟更新
     const {$updater} = instance;
     for(const fn of methodNames){
         if(typeof instance[fn] === 'function'){

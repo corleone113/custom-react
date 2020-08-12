@@ -13,7 +13,7 @@ import {
 import {
     onlyOne,
     flatten,
-    renderText,
+    isText,
 } from './utils';
 import {
     Updater,
@@ -45,7 +45,7 @@ function createElement(type, config = {}, ...children) {
         // children中的函数或基本类型的值不会被babel转码器转化为createElement调用
         if (typeof child === 'object' || typeof child === 'function') { // children为React元素或函数时直接返回
             return child;
-        } else if(renderText(child)) { // 目前暂时将基本类型也转化为对象
+        } else if(isText(child)) { // 目前暂时将基本类型也转化为对象
             return { // 当作React元素
                 $$typeof: TEXT,
                 type: 'text',

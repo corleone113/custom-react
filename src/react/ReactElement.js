@@ -12,7 +12,7 @@ import {
     setProps,
     patchProps,
     injectListener,
-    renderText,
+    isText,
     injectLifecycle,
 } from './utils';
 let updateDepth = 0;
@@ -37,7 +37,7 @@ export function createDOM(element) { // 基于传入的React元素创建DOM节�
         $$typeof
     } = element;
     let dom = null;
-    if (renderText(element) || $$typeof === TEXT) { // 处理文本React元素
+    if (isText(element) || $$typeof === TEXT) { // 处理文本React元素
         dom = document.createTextNode(element.children);
     } else if ($$typeof === REACT_ELEMENT) { // 处理HTML元素React元素
         dom = createNativeDOM(element);
@@ -62,7 +62,7 @@ function createNativeDOM(element) {
         updaters,
     } = element;
     const dom = document.createElement(type);
-    updaters && injectListener(updaters, props);
+    updaters && injectListener(updaters, props); // 劫持事件监听器，让其支持批量延迟更新(state)
     // 创建此DOM节点的子节点
     createDOMChildren(dom, children, updaters);
     // 给该DOM节点添加attributes
@@ -79,7 +79,7 @@ function createDOMChildren(parentNode, children, updaters) {
         if (child != null) { // 可能为null
             updaters && (child.updaters = updaters.slice());
             child._mountIndex = index; // 进行diff时会用到
-            const childDOM = createDOM(child); // 创建字节的真实DOM节点
+            const childDOM = createDOM(child); // 创建子节点的真实DOM节点
             parentNode.appendChild(childDOM);
         }
     })
@@ -111,7 +111,7 @@ function createClassComponentDOM(element) {
     } = ClassConstructor;
     const initContext = contextType ? contextType.Provider.value : contextType; // 获取context
     const componentInstance = new ClassConstructor(props, initContext); // 创建组件实例
-    injectLifecycle(componentInstance);
+    injectLifecycle(componentInstance); // 劫持部分生命周期方法——让它们支持批量延迟更新。
     componentInstance.ban = false; // 解除限制，现在开始可以使用setState了。
     if (ref) { // 挂载ref——通过ref.current可以获取该类组件实例了。
         ref.current = componentInstance;
@@ -141,7 +141,7 @@ function createClassComponentDOM(element) {
     }
     element.componentInstance = componentInstance; // 在类组件生成的虚拟DOM对象上添加指向对应的组件实例的属性
     const renderElement = componentInstance.render();
-    renderElement.updaters = element.updaters.slice();
+    renderElement.updaters = element.updaters.slice(); // 拷贝updater数组，这个数组会传递给所有子节点(React元素)
     componentInstance.renderElement = renderElement; // 在类组件实例上添加指向渲染出的虚拟DOM对象，用于下一次dom-diff比对使用。
     const newDOM = createDOM(renderElement); // 基于渲染结果创建DOM节点
     if (typeof componentDidMount === 'function') {
@@ -155,18 +155,19 @@ export function compareTwoElement(oldRenderElement, newRenderElement) {
     let currentElement = oldRenderElement; // 复用旧的React元素
     if (newRenderElement == null) { // 条件渲染
         const {
-            componentInstance,
+            componentInstance: instance,
             componentInstance: {
                 componentWillUnmount,
             },
         } = oldRenderElement
-        if (typeof componentWillUnmount === 'function') {
-            componentInstance.ban = true;
-            componentWillUnmount.call(componentInstance);
+        if (typeof componentWillUnmount === 'function') { // 移除前先卸载组件实例
+            instance.ban = true;
+            instance.componentWillUnmount();
+            delete oldRenderElement.componentInstance;
         }
         currentDOM.parentNode.removeChild(currentDOM); // 移除对应的DOM节点
         currentDOM = null; // 释放占用的内存空间
-    } else if (renderText(newRenderElement) || oldRenderElement.type !== newRenderElement.type) { // 变为数字/字符串或类型不同则直接进行替换
+    } else if (isText(newRenderElement) || oldRenderElement.type !== newRenderElement.type) { // 变为数字/字符串或类型不同则直接进行替换
         const newDOM = createDOM(newRenderElement); // 创建新的DOM节点
         currentDOM.parentNode.replaceChild(newDOM, currentDOM);
         currentElement = newRenderElement; // 此时新的React元素作为返回结果
@@ -329,7 +330,7 @@ function getNewChildrenElementMap(oldChildrenElementMap, newChildrenElements) { 
     const newChildrenElementMap = {};
     for (let i = 0; i < newChildrenElements.length; ++i) {
         const newChildElement = newChildrenElements[i];
-        if (newChildElement) { // 不为null则尝试复用
+        if (newChildElement) { // 不为null则查找可复用节点
             const newKey = (newChildElement && newChildElement.key) || i.toString(); // 优先使用key prop
             const oldChildElement = oldChildrenElementMap[newKey]; // 在旧节点映射表中通过key查询子节点
             if (canDeepCompare(oldChildElement, newChildElement)) { // 判断是否可复用旧节点
@@ -344,7 +345,7 @@ function getNewChildrenElementMap(oldChildrenElementMap, newChildrenElements) { 
 
 function canDeepCompare(oldChildElement, newChildElement) {
     if (oldChildElement && newChildElement) { // oldChildElement不为空则表示根据key查找到了旧节点，即oldChildElment和newChildElement的key相同
-        return oldChildElement.type === newChildElement.type; // 如果type也相同则返回true——标识可以复用
+        return oldChildElement.type === newChildElement.type; // 如果type也相同则返回true——表示可以复用
     }
     return false;
 }
