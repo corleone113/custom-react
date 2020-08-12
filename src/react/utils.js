@@ -1,7 +1,7 @@
 import {
     addEvent
 } from './event';
-import { batchingInject } from './updater';
+import { batchingInject, updateQueue } from './updater';
 export function onlyOne(target) {
     return Array.isArray(target) ? target[0] : target;
 }
@@ -89,6 +89,7 @@ export function injectLifecycle(instance){ // 劫持生命周期方法，在声�
                 const ret =method.apply(instance, args);
                 $updater.batching = false;
                 $updater.update();
+                updateQueue.length = 0;
                 return ret;
             }
         }

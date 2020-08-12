@@ -1,4 +1,4 @@
-const updateQueue = {
+export const updateQueue = {
     updaters: [],
     add(updater) {
         this.updaters.push(updater);
