@@ -152,7 +152,7 @@ function createClassComponentDOM(element) {
 
 export function compareTwoElement(oldRenderElement, newRenderElement) {
     let currentDOM = oldRenderElement.dom; // 复用DOM节点
-    let currentElement = oldRenderElement; // 复用旧的React元素
+    let currentElement = newRenderElement; // 实际之应该复用dom、updater、组件实例等，这里为了方便直接复用React元素——实际上React元素不会被复用，它本身也是深冻结的。
     if (newRenderElement == null) { // 条件渲染
         const {
             componentInstance: instance,
@@ -167,7 +167,7 @@ export function compareTwoElement(oldRenderElement, newRenderElement) {
         }
         currentDOM.parentNode.removeChild(currentDOM); // 移除对应的DOM节点
         currentDOM = null; // 释放占用的内存空间
-    } else if (isText(newRenderElement) || oldRenderElement.type !== newRenderElement.type) { // 变为数字/字符串或类型不同则直接进行替换
+    } else if ((!isText(oldRenderElement) && isText(newRenderElement)) || oldRenderElement.type !== newRenderElement.type) { // 变为数字/字符串或类型不同则直接进行替换
         const newDOM = createDOM(newRenderElement); // 创建新的DOM节点
         currentDOM.parentNode.replaceChild(newDOM, currentDOM);
         currentElement = newRenderElement; // 此时新的React元素作为返回结果
@@ -188,7 +188,7 @@ function updateElement(oldElement, newElement) { // 这里的比较的两个Reac
         updateDOMProperties(currentDOM, oldElement.props, newElement.props); // 先更新attribute
         // 递归更新子元素
         updateChildrenElements(currentDOM, oldElement.props.children, newElement.props.children); // 比对子节点
-        oldElement.props = newElement.props;
+        oldElement.props = newElement.props; // 更新children等非attribute prop
     } else if (oldElement.$$typeof === FUNCTION_COMPONENT) { // 处理函数组件
         updateFunctionComponent(oldElement, newElement);
     } else if (oldElement.$$typeof === CLASS_COMPONENT) { // 处理类组件
@@ -335,7 +335,7 @@ function getNewChildrenElementMap(oldChildrenElementMap, newChildrenElements) { 
             const oldChildElement = oldChildrenElementMap[newKey]; // 在旧节点映射表中通过key查询子节点
             if (canDeepCompare(oldChildElement, newChildElement)) { // 判断是否可复用旧节点
                 updateElement(oldChildElement, newChildElement); // 调用updateElement更新旧节点，深度优先遍历发生这里
-                newChildrenElements[i] = oldChildElement; // 复用旧节点
+                newChildrenElements[i] = oldChildElement; // 为了方便直接复用React元素
             }
             newChildrenElementMap[newKey] = newChildrenElements[i];
         }
