@@ -48,10 +48,9 @@ export class Updater {
         } = this;
         this.preProps = component.props;
         this.preState = component.state;
-        if (nextProps || pendingStates.length > 0) { // 存在this.nextProps说明props更新了；pendingStates.length>0说明调用了setState
+        if (nextProps || pendingStates.length > 0) { // 存在nextProps说明props更新了；pendingStates.length>0说明调用了setState
             this.updateComponent(component, nextProps);
         }
-        this.nextProps = undefined;
     }
     executeCallbacks() {
         this.callbacks.forEach(cb => cb()); // 遍历执行传入setState的回调

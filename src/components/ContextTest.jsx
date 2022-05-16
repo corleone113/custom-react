@@ -1,3 +1,4 @@
+// import React, { Component } from 'react'
 import React, { Component } from '../react'
 import someContext from '../someContext';
 // import PropTypes from 'prop-types';

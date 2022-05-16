@@ -8,7 +8,7 @@ import {
 } from './constants';
 import {
     ReactElement,
-    compareTwoElement,
+    updateElement,
 } from './ReactElement';
 import {
     onlyOne,
@@ -73,7 +73,7 @@ class Component {
         const {
             props,
             state,
-            renderElement: oldRenderElement, // 旧的render返回值——渲染结果
+            renderElement: oldElement, // 旧的render返回值——渲染结果
             $updater: {
                 preProps,
                 preState,
@@ -98,9 +98,9 @@ class Component {
         if (typeof this.componentWillUpdate === 'function' && !this.lifecycleCalled) {
             this.componentWillUpdate(props, state);
         }
-        const newRenderElement = this.render(); // 获取新的渲染结果
-        const currentElement = compareTwoElement(oldRenderElement, newRenderElement); // 比对新旧渲染结果
-        this.renderElement = currentElement; // 更新当前实例的renderElement属性
+        const newElement = this.render(); // 获取新的渲染结果
+        updateElement(oldElement, newElement); // 比对新旧渲染结果
+        this.renderElement = newElement; // 更新当前实例的renderElement属性
         let snapshot;
         if (typeof this.getSnapshotBeforeUpdate === 'function') {
             if (typeof this.componentWillUpdate === 'function')
@@ -113,7 +113,7 @@ class Component {
         this.lifecycleCalled = false;
     }
 }
-Component.prototype.isComponent = {}; // 标识类组件
+Component.prototype.isComponent = true; // 标识类组件
 
 function createRef() {
     return {

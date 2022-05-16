@@ -1,4 +1,5 @@
 import React, { Component } from '../react';
+// import React, { Component } from 'react';
 function FunctionCounter(props) {
     return (
         <div counter={`counter${props.number}`}>
